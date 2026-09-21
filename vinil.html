@@ -12,15 +12,19 @@ html,body{margin:0;padding:0;width:100%;min-height:100%}
 body{
     min-height:100vh;padding:20px;
     font-family:Arial,Helvetica,sans-serif;color:#fff;
-    background:radial-gradient(circle at center,#303030 0%,#151515 52%,#050505 100%);
+    background:
+        radial-gradient(circle at 20% 15%,rgba(255,220,150,.10),transparent 24%),
+        radial-gradient(circle at 80% 75%,rgba(55,20,5,.30),transparent 30%),
+        repeating-linear-gradient(7deg,#5a321b 0px,#6b3d20 7px,#4b2816 15px,#704325 23px,#512c18 31px,#63371c 40px);
+    background-attachment:fixed;
     overflow-x:hidden;
 }
 .page{width:100%;max-width:1000px;margin:0 auto}
 .turntable{
     width:100%;padding:34px;border-radius:24px;
-    background:linear-gradient(145deg,#292929,#111);
-    border:1px solid #444;
-    box-shadow:0 30px 70px rgba(0,0,0,.75),inset 0 1px 1px rgba(255,255,255,.08);
+    background:linear-gradient(145deg,rgba(92,52,27,.96),rgba(36,18,9,.98));
+    border:1px solid #8a5a32;
+    box-shadow:0 30px 70px rgba(20,8,2,.70),inset 0 1px 1px rgba(255,220,160,.12),inset 0 0 35px rgba(0,0,0,.25);
 }
 .top{width:100%;display:flex;align-items:center;gap:45px}
 .platter{
@@ -41,16 +45,26 @@ body{
 @keyframes vinylSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 .label{
     position:absolute;width:30%;height:30%;left:35%;top:35%;border-radius:50%;
-    background:radial-gradient(circle,#222 0 7%,#b78a35 8% 10%,#8e1f25 11% 60%,#6e151b 61% 100%);
-    box-shadow:inset 0 0 15px rgba(0,0,0,.7)
+    background:
+        radial-gradient(circle at center,#111 0 5%,transparent 5.5%),
+        radial-gradient(circle at center,rgba(0,0,0,.20),rgba(0,0,0,.02) 58%,rgba(0,0,0,.38) 100%),
+        #7b2028;
+    background-size:100% 100%;
+    background-position:center;
+    background-repeat:no-repeat;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.14),inset 0 0 15px rgba(0,0,0,.72),0 1px 4px rgba(0,0,0,.65);
+    overflow:hidden
+}
+.label::before{
+    content:"";position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.18),transparent 22%),radial-gradient(circle,transparent 0 48%,rgba(0,0,0,.16) 49%,transparent 51%),radial-gradient(circle,transparent 0 66%,rgba(0,0,0,.18) 67%,transparent 69%);
+    pointer-events:none
 }
 .label::after{
-    content:"VINYL";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    color:#e9c56b;font-size:14px;font-weight:bold;letter-spacing:2px;transform:rotate(-20deg)
+    content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px;border-radius:50%;
+    background:#090909;box-shadow:0 0 0 2px rgba(255,255,255,.10)
 }
-.hole{
-    position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px;border-radius:50%;background:#050505
-}
+.hole{display:none}
 .tonearm{
     position:absolute;right:2%;top:8%;width:25.5%;height:4%;min-height:10px;border-radius:20px;
     background:linear-gradient(to bottom,#eee,#aaa 45%,#555 75%,#2b2b2b);
@@ -209,7 +223,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radiu
 
     <section class="library">
         <div class="library-title">
-            <strong>🎵 Minhas Playlists</strong>
+            <strong>Discoteca</strong>
             <span>Clique na capa para ouvir</span>
         </div>
         <div class="playlists" id="playlists"></div>
@@ -397,6 +411,7 @@ const currentTime = document.getElementById("currentTime");
 const duration = document.getElementById("duration");
 const song = document.getElementById("song");
 const playlistName = document.getElementById("playlistName");
+const recordLabel = document.querySelector(".label");
 const playlistsContainer = document.getElementById("playlists");
 const apiMessage = document.getElementById("apiMessage");
 
@@ -556,11 +571,28 @@ function mostrarPlaceholder(cover, nome) {
     cover.appendChild(placeholder);
 }
 
+function atualizarCapaDoDisco() {
+    if (!recordLabel) return;
+
+    const item = playlists[playlistAtual];
+    const capa = item?.capaOriginal || item?.capa || "";
+
+    if (capa) {
+        recordLabel.style.backgroundImage =
+            'radial-gradient(circle at center,rgba(0,0,0,.02) 0 48%,rgba(0,0,0,.18) 70%,rgba(0,0,0,.42) 100%), url("' +
+            capa.replace(/"/g, '\\\"') + '")';
+        recordLabel.style.backgroundSize = "100% 100%, cover";
+        recordLabel.style.backgroundPosition = "center, center";
+        recordLabel.style.backgroundRepeat = "no-repeat";
+    }
+}
+
 function atualizarCapaSelecionada() {
     const cards = playlistsContainer.querySelectorAll(".playlist-card");
     cards.forEach((card, index) => {
         card.classList.toggle("active", index === playlistAtual);
     });
+    atualizarCapaDoDisco();
 }
 
 /* =========================================================
@@ -604,17 +636,30 @@ function onPlayerReady() {
    SELECIONAR PLAYLIST
 ========================================================= */
 function selecionarPlaylist(index) {
+    if (index < 0 || index >= playlists.length) return;
+
     playlistAtual = index;
     const item = playlists[playlistAtual];
 
     atualizarCapaSelecionada();
+    atualizarInformacoes();
 
     if (!playerReady) {
         statusText.textContent = "Carregando YouTube...";
         return;
     }
 
-    const estavaTocando = tocando;
+    // Carrega EXATAMENTE a playlist do álbum clicado.
+    // O index 0 garante que a reprodução começa pela primeira faixa
+    // dessa playlist, sem aproveitar a fila da playlist anterior.
+    tocando = false;
+    vinyl.classList.remove("playing");
+    tonearm.classList.remove("playing-arm");
+    playButton.textContent = "▶ Reproduzir";
+
+    statusText.textContent = "Abrindo " + item.nome + "...";
+
+    player.stopVideo();
 
     player.loadPlaylist({
         listType: "playlist",
@@ -624,13 +669,13 @@ function selecionarPlaylist(index) {
 
     player.setVolume(Number(volume.value));
 
-    if (estavaTocando) {
-        iniciarVisual();
-        statusText.textContent = "Tocando...";
-    } else {
-        pararVisual();
-        statusText.textContent = "Playlist selecionada";
-    }
+    // O clique no álbum já inicia a playlist escolhida.
+    // O player só começa quando a nova playlist estiver carregada.
+    setTimeout(() => {
+        if (playerReady && playlists[playlistAtual] === item) {
+            player.playVideo();
+        }
+    }, 450);
 }
 
 /* =========================================================
@@ -638,8 +683,9 @@ function selecionarPlaylist(index) {
 ========================================================= */
 function atualizarInformacoes() {
     const item = playlists[playlistAtual];
-    song.textContent = "🎵 " + item.nome;
+    song.textContent = item.nome;
     playlistName.textContent = item.descricao;
+    atualizarCapaDoDisco();
 }
 
 function atualizarTituloMusica() {
@@ -649,7 +695,7 @@ function atualizarTituloMusica() {
         const dados = player.getVideoData();
 
         if (dados?.title) {
-            song.textContent = "🎵 " + dados.title;
+            song.textContent = dados.title;
         }
 
         const index = player.getPlaylistIndex();
@@ -696,6 +742,13 @@ function iniciarVisual() {
     vinyl.classList.add("playing");
     tonearm.classList.add("playing-arm");
     playButton.textContent = "⏸ Pausar";
+}
+
+function pararVisual() {
+    tocando = false;
+    vinyl.classList.remove("playing");
+    tonearm.classList.remove("playing-arm");
+    playButton.textContent = "▶ Reproduzir";
 }
 
 function pauseMusic() {
@@ -781,6 +834,7 @@ function onPlayerStateChange(event) {
 
     else if (event.data === YT.PlayerState.CUED) {
         atualizarTituloMusica();
+        atualizarCapaDoDisco();
         statusText.textContent = "Pronto";
     }
 }
@@ -840,10 +894,11 @@ async function prepararPlaylists() {
     }
 
     renderPlaylists();
+    atualizarCapaDoDisco();
 
     if (algumaFuncionou) {
         apiMessage.hidden = true;
-        song.textContent = "🎵 " + playlists[0].nome;
+        song.textContent = playlists[0].nome;
         playlistName.textContent = playlists[0].descricao;
     } else {
         apiMessage.hidden = false;
@@ -854,6 +909,7 @@ async function prepararPlaylists() {
 
 /* Começa o carregamento visual imediatamente */
 renderPlaylists();
+atualizarCapaDoDisco();
 prepararPlaylists();
 </script>
 </body>
