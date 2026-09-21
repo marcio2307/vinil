@@ -240,6 +240,7 @@ const playlists = [
         nome: "Playlist 1",
         playlist: "PLhcSg5Wd41MtVzEVrbrWz3XNObrYW2vIV",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -247,6 +248,7 @@ const playlists = [
         nome: "Playlist 2",
         playlist: "PLhcSg5Wd41Mvsoi_3u46cvnZAnop5JITB",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -254,6 +256,7 @@ const playlists = [
         nome: "Playlist 3",
         playlist: "PLhcSg5Wd41MuhfJIbB_zuOHPz1_Y7A174",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -261,6 +264,7 @@ const playlists = [
         nome: "Playlist 4",
         playlist: "PLhcSg5Wd41MtcDxE_f2Z7ID42wA1q_lYx",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -268,6 +272,7 @@ const playlists = [
         nome: "Playlist 5",
         playlist: "PLhcSg5Wd41Mt5Y-dE3RSIrJI46VpM8oyJ",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -275,6 +280,7 @@ const playlists = [
         nome: "Playlist 6",
         playlist: "OLAK5uy_lAj49-igFSgb8DFXTGgNBsApKkIIMdpEE",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -282,6 +288,7 @@ const playlists = [
         nome: "Playlist 7",
         playlist: "PLhcSg5Wd41MuKYZ9D9T4-sHbCYYf0D3Z2",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -289,6 +296,7 @@ const playlists = [
         nome: "Playlist 8",
         playlist: "PLhcSg5Wd41MvIoHYaBGMj8xQ9XLXmxq0U",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -296,6 +304,7 @@ const playlists = [
         nome: "Playlist 9",
         playlist: "PLhcSg5Wd41MtjsphlRYQhBcvlU49T1N9f",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -303,6 +312,7 @@ const playlists = [
         nome: "Playlist 10",
         playlist: "PLhcSg5Wd41MtXALWTX4gclUvAY0HwZ0j-",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -310,6 +320,7 @@ const playlists = [
         nome: "Playlist 11",
         playlist: "PLhcSg5Wd41MvHoKNToqMxHnbsiCXofBfF",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -317,6 +328,7 @@ const playlists = [
         nome: "Playlist 12",
         playlist: "PLhcSg5Wd41MvXn9qPrbpYNYlo_IpUQV9R",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     },
@@ -324,6 +336,7 @@ const playlists = [
         nome: "Playlist 13",
         playlist: "PLhcSg5Wd41MsycqJT3OGZ9y2tI627QyUC",
         capa: "",
+        capaOriginal: "",
         descricao: "Playlist do YouTube",
         quantidade: 0
     }
@@ -405,6 +418,8 @@ async function carregarDadosPlaylist(item) {
         else if (thumbs.medium?.url) item.capa = thumbs.medium.url;
         else if (thumbs.default?.url) item.capa = thumbs.default.url;
 
+        item.capaOriginal = item.capa;
+
         /*
           Fallback: se a playlist não tiver thumbnail,
           pega a miniatura do primeiro vídeo.
@@ -427,6 +442,8 @@ async function carregarDadosPlaylist(item) {
             else if (t.high?.url) item.capa = t.high.url;
             else if (t.medium?.url) item.capa = t.medium.url;
             else if (t.default?.url) item.capa = t.default.url;
+
+            item.capaOriginal = item.capa;
         }
 
         return true;
@@ -440,6 +457,8 @@ async function carregarDadosPlaylist(item) {
    RENDERIZAR PLAYLISTS
 ========================================================= */
 function renderPlaylists() {
+    // Cada card usa exclusivamente a capa da própria playlist.
+    // A imagem não é substituída quando a música muda.
     playlistsContainer.innerHTML = "";
 
     playlists.forEach((item, index) => {
@@ -451,11 +470,11 @@ function renderPlaylists() {
         const cover = document.createElement("div");
         cover.className = "cover";
 
-        if (item.capa) {
+        if (item.capaOriginal) {
             const img = document.createElement("img");
-            img.src = item.capa;
+            img.src = item.capaOriginal;
             img.alt = "Capa - " + item.nome;
-            img.loading = "lazy";
+            img.loading = "eager";
             img.onerror = () => {
                 img.remove();
                 mostrarPlaceholder(cover, item.nome);
@@ -601,26 +620,14 @@ function atualizarTituloMusica() {
                 " • faixa " + (index + 1);
         }
 
-        /*
-          Se houver vídeo atual, usa a thumbnail do próprio vídeo
-          como capa do toca-discos enquanto a música toca.
-        */
-        if (dados?.video_id) {
-            atualizarCapaDaFaixa(dados.video_id);
-        }
+        // A capa da playlist fica fixa.
+        // A troca de música não altera a imagem do álbum.
     } catch (e) {}
 }
 
-function atualizarCapaDaFaixa(videoId) {
-    const cards = playlistsContainer.querySelectorAll(".playlist-card");
-    const card = cards[playlistAtual];
-    if (!card) return;
-
-    const img = card.querySelector(".cover img");
-
-    if (img) {
-        img.src = "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg";
-    }
+function atualizarCapaDaFaixa() {
+    // Intencionalmente vazio: a capa da playlist/álbum nunca muda
+    // quando a faixa atual muda.
 }
 
 /* =========================================================
