@@ -270,6 +270,14 @@ const YOUTUBE_API_KEY = "AIzaSyDtaU0s5cdRbX-kUC06el2nPCTXBP-eUeA";
 
 const playlists = [
     {
+        nome: "Pelos Caminhos Que Zé Me Guiou",
+        playlist: "OLAK5uy_na8l02TgDgxUJayriOL4JPxIhhCg9lqo8",
+        capa: "https://http2.mlstatic.com/D_NQ_NP_838866-MLB74648501462_022024-O.webp",
+        capaOriginal: "https://http2.mlstatic.com/D_NQ_NP_838866-MLB74648501462_022024-O.webp",
+        descricao: "Playlist do YouTube",
+        quantidade: 0
+    },
+    {
         nome: "ACRECENTE",
         playlist: "PLhcSg5Wd41Mvaheax-m7ZzFfQ_GqvUEbi",
         capa: "",
@@ -514,20 +522,22 @@ async function carregarDadosPlaylist(item) {
 
         const thumbs = p.snippet?.thumbnails || {};
 
-        // Prioriza miniaturas menores para carregar a discoteca mais rápido.
-        // A capa continua sendo a oficial da playlist.
-        if (thumbs.medium?.url) item.capa = thumbs.medium.url;
-        else if (thumbs.high?.url) item.capa = thumbs.high.url;
-        else if (thumbs.default?.url) item.capa = thumbs.default.url;
-        else if (thumbs.maxres?.url) item.capa = thumbs.maxres.url;
+        // Mantém a capa personalizada quando ela já foi definida.
+        // Caso contrário, usa a miniatura oficial da playlist.
+        if (!item.capaOriginal) {
+            if (thumbs.medium?.url) item.capa = thumbs.medium.url;
+            else if (thumbs.high?.url) item.capa = thumbs.high.url;
+            else if (thumbs.default?.url) item.capa = thumbs.default.url;
+            else if (thumbs.maxres?.url) item.capa = thumbs.maxres.url;
 
-        item.capaOriginal = item.capa;
+            item.capaOriginal = item.capa;
+        }
 
         /*
           Fallback: se a playlist não tiver thumbnail,
           pega a miniatura do primeiro vídeo.
         */
-        if (!item.capa) {
+        if (!item.capa && !item.capaOriginal) {
             const itensUrl =
                 "https://www.googleapis.com/youtube/v3/playlistItems" +
                 "?part=snippet" +
