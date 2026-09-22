@@ -107,6 +107,21 @@ button:hover{background:linear-gradient(#555,#292929)}
 button:active{transform:translateY(2px)}
 .play-button{font-size:15px;font-weight:bold;background:linear-gradient(#b78a35,#76571e);border-color:#d4a84f}
 .play-button:hover{background:linear-gradient(#c79b43,#856525)}
+.ad-warning{
+    width:100%;
+    max-width:390px;
+    margin:10px auto 0;
+    padding:7px 10px;
+    border:1px solid rgba(212,168,79,.28);
+    border-radius:7px;
+    background:rgba(20,14,8,.45);
+    color:#9d927f;
+    font-size:10px;
+    line-height:1.35;
+    text-align:center;
+    letter-spacing:.2px;
+}
+.ad-warning b{color:#bca26d;font-weight:bold}
 .volume-area{width:100%;min-width:0;margin-top:24px}
 .volume-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;color:#bbb;font-size:13px}
 .volume-slider{width:100%;min-width:0}
@@ -203,6 +218,10 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radiu
                     <button type="button" class="play-button" id="playButton" title="Reproduzir">▶ Reproduzir</button>
                     <button type="button" id="stopButton" title="Parar">■</button>
                     <button type="button" id="nextButton" title="Próxima música">⏭</button>
+                </div>
+
+                <div class="ad-warning" role="note" aria-label="Orientação para propaganda">
+                    ⚠️ Se aparecer propaganda: aperte <b>■</b> e depois <b>▶ Reproduzir</b>.
                 </div>
 
                 <div class="volume-area">
@@ -476,10 +495,12 @@ async function carregarDadosPlaylist(item) {
 
         const thumbs = p.snippet?.thumbnails || {};
 
-        if (thumbs.maxres?.url) item.capa = thumbs.maxres.url;
+        // Prioriza miniaturas menores para carregar a discoteca mais rápido.
+        // A capa continua sendo a oficial da playlist.
+        if (thumbs.medium?.url) item.capa = thumbs.medium.url;
         else if (thumbs.high?.url) item.capa = thumbs.high.url;
-        else if (thumbs.medium?.url) item.capa = thumbs.medium.url;
         else if (thumbs.default?.url) item.capa = thumbs.default.url;
+        else if (thumbs.maxres?.url) item.capa = thumbs.maxres.url;
 
         item.capaOriginal = item.capa;
 
@@ -501,10 +522,10 @@ async function carregarDadosPlaylist(item) {
             const primeiro = d2.items?.[0];
             const t = primeiro?.snippet?.thumbnails || {};
 
-            if (t.maxres?.url) item.capa = t.maxres.url;
+            if (t.medium?.url) item.capa = t.medium.url;
             else if (t.high?.url) item.capa = t.high.url;
-            else if (t.medium?.url) item.capa = t.medium.url;
             else if (t.default?.url) item.capa = t.default.url;
+            else if (t.maxres?.url) item.capa = t.maxres.url;
 
             item.capaOriginal = item.capa;
         }
@@ -537,7 +558,12 @@ function renderPlaylists() {
             const img = document.createElement("img");
             img.src = item.capaOriginal;
             img.alt = "Capa - " + item.nome;
-            img.loading = "eager";
+            // Carregamento inteligente: as primeiras capas têm prioridade;
+            // as demais carregam somente quando entram perto da tela.
+            img.loading = index < 4 ? "eager" : "lazy";
+            if (index < 2) img.fetchPriority = "high";
+            else img.fetchPriority = "low";
+            img.decoding = "async";
             img.onerror = () => {
                 img.remove();
                 mostrarPlaceholder(cover, item.nome);
@@ -577,6 +603,45 @@ function mostrarPlaceholder(cover, nome) {
         '<div class="mini-vinyl"></div>' +
         '<strong>' + escapeHtml(nome) + '</strong>';
     cover.appendChild(placeholder);
+}
+
+function atualizarCardDaPlaylist(index) {
+    const card = playlistsContainer.querySelector('.playlist-card[data-index="' + index + '"]');
+    const item = playlists[index];
+    if (!card || !item) return;
+
+    const cover = card.querySelector(".cover");
+    if (!cover || !item.capaOriginal) return;
+
+    const antiga = cover.querySelector("img");
+    if (antiga) return;
+
+    cover.innerHTML = "";
+
+    const img = document.createElement("img");
+    img.src = item.capaOriginal;
+    img.alt = "Capa - " + item.nome;
+    img.loading = index < 4 ? "eager" : "lazy";
+    img.fetchPriority = index < 2 ? "high" : "low";
+    img.decoding = "async";
+    img.onerror = () => {
+        img.remove();
+        mostrarPlaceholder(cover, item.nome);
+    };
+
+    cover.appendChild(img);
+
+    const info = card.querySelector(".playlist-info");
+    if (info) {
+        const quantidade =
+            item.quantidade > 0
+                ? item.quantidade + (item.quantidade === 1 ? " faixa" : " faixas")
+                : item.descricao;
+
+        info.innerHTML =
+            "<strong>" + escapeHtml(item.nome) + "</strong>" +
+            "<span>" + escapeHtml(quantidade) + "</span>";
+    }
 }
 
 function atualizarCapaDoDisco() {
@@ -891,23 +956,36 @@ async function prepararPlaylists() {
         return;
     }
 
-    apiMessage.hidden = false;
-    apiMessage.textContent = "Buscando capas das playlists no YouTube...";
-
-    let algumaFuncionou = false;
-
-    for (const item of playlists) {
-        const ok = await carregarDadosPlaylist(item);
-        if (ok) algumaFuncionou = true;
-    }
-
+    // Mostra a discoteca imediatamente com placeholders.
+    // Assim a página não fica esperando as 19 consultas da API.
     renderPlaylists();
     atualizarCapaDoDisco();
+
+    apiMessage.hidden = false;
+    apiMessage.textContent = "Carregando capas...";
+
+    // Carrega todas as playlists em paralelo e atualiza os cards
+    // conforme cada capa fica disponível.
+    const resultados = await Promise.all(
+        playlists.map(async (item, index) => {
+            const ok = await carregarDadosPlaylist(item);
+
+            if (ok) {
+                atualizarCardDaPlaylist(index);
+                if (index === playlistAtual) atualizarCapaDoDisco();
+            }
+
+            return ok;
+        })
+    );
+
+    const algumaFuncionou = resultados.some(Boolean);
 
     if (algumaFuncionou) {
         apiMessage.hidden = true;
         song.textContent = playlists[0].nome;
         playlistName.textContent = playlists[0].descricao;
+        atualizarCapaDoDisco();
     } else {
         apiMessage.hidden = false;
         apiMessage.textContent =
