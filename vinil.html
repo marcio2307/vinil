@@ -270,6 +270,25 @@ const YOUTUBE_API_KEY = "AIzaSyDtaU0s5cdRbX-kUC06el2nPCTXBP-eUeA";
 
 const playlists = [
     {
+        nome: "ACRECENTE",
+        playlist: "PLhcSg5Wd41Mvaheax-m7ZzFfQ_GqvUEbi",
+        capa: "",
+        capaOriginal: "",
+        descricao: "Playlist recente do YouTube",
+        quantidade: 0
+    },
+    {
+        nome: "União espirita cearense de umbanda mestre peneiro é",
+        playlist: "SSBT5w_NHwo",
+        videoId: "SSBT5w_NHwo",
+        tipo: "video",
+        capa: "https://i.ytimg.com/vi/SSBT5w_NHwo/hqdefault.jpg",
+        capaOriginal: "https://i.ytimg.com/vi/SSBT5w_NHwo/hqdefault.jpg",
+        descricao: "Título original do YouTube",
+        quantidade: 1
+    },
+
+    {
         nome: "Playlist 1",
         playlist: "PLhcSg5Wd41MtVzEVrbrWz3XNObrYW2vIV",
         capa: "",
@@ -538,6 +557,54 @@ async function carregarDadosPlaylist(item) {
 }
 
 /* =========================================================
+   TÍTULO ORIGINAL DO VÍDEO NO YOUTUBE
+   Para entradas especiais de vídeo/radio, o card usa o
+   título real retornado pelo YouTube, sem nome personalizado.
+========================================================= */
+async function carregarTituloOriginalDoYouTube(item, index) {
+    if (!item || item.tipo !== "video" || !item.videoId) return false;
+    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY.includes("COLE_SUA")) return false;
+
+    try {
+        const url =
+            "https://www.googleapis.com/youtube/v3/videos" +
+            "?part=snippet" +
+            "&id=" + encodeURIComponent(item.videoId) +
+            "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
+
+        const resposta = await fetch(url);
+        const dados = await resposta.json();
+
+        if (!resposta.ok || dados.error || !dados.items?.length) {
+            throw new Error(dados.error?.message || "Vídeo não encontrado.");
+        }
+
+        const video = dados.items[0];
+        const snippet = video.snippet || {};
+
+        item.nome = snippet.title || item.nome;
+        item.descricao = "YouTube";
+        item.capa = item.capaOriginal ||
+            snippet.thumbnails?.medium?.url ||
+            snippet.thumbnails?.high?.url ||
+            snippet.thumbnails?.default?.url ||
+            item.capa;
+
+        item.capaOriginal = item.capaOriginal || item.capa;
+
+        atualizarCardDaPlaylist(index);
+        if (index === playlistAtual) {
+            atualizarInformacoes();
+        }
+
+        return true;
+    } catch (erro) {
+        console.error("Erro ao carregar título original do YouTube:", erro);
+        return false;
+    }
+}
+
+/* =========================================================
    RENDERIZAR PLAYLISTS
 ========================================================= */
 function renderPlaylists() {
@@ -722,9 +789,8 @@ function selecionarPlaylist(index) {
         return;
     }
 
-    // Carrega EXATAMENTE a playlist do álbum clicado.
-    // O index 0 garante que a reprodução começa pela primeira faixa
-    // dessa playlist, sem aproveitar a fila da playlist anterior.
+    // Carrega exatamente a playlist ou o vídeo ACRECENTE selecionado.
+    // Para a entrada especial de rádio, reproduz o vídeo informado diretamente.
     tocando = false;
     vinyl.classList.remove("playing");
     tonearm.classList.remove("playing-arm");
@@ -734,21 +800,30 @@ function selecionarPlaylist(index) {
 
     player.stopVideo();
 
-    player.loadPlaylist({
-        listType: "playlist",
-        list: item.playlist,
-        index: 0
-    });
+    if (item.tipo === "video" && item.videoId) {
+        // A entrada ACRECENTE • Rádio é um vídeo/radio mix do YouTube.
+        player.loadVideoById(item.videoId);
+        player.setVolume(Number(volume.value));
+        setTimeout(() => {
+            if (playerReady && playlists[playlistAtual] === item) {
+                player.playVideo();
+            }
+        }, 250);
+    } else {
+        player.loadPlaylist({
+            listType: "playlist",
+            list: item.playlist,
+            index: 0
+        });
 
-    player.setVolume(Number(volume.value));
+        player.setVolume(Number(volume.value));
 
-    // O clique no álbum já inicia a playlist escolhida.
-    // O player só começa quando a nova playlist estiver carregada.
-    setTimeout(() => {
-        if (playerReady && playlists[playlistAtual] === item) {
-            player.playVideo();
-        }
-    }, 450);
+        setTimeout(() => {
+            if (playerReady && playlists[playlistAtual] === item) {
+                player.playVideo();
+            }
+        }, 450);
+    }
 }
 
 /* =========================================================
@@ -968,6 +1043,12 @@ async function prepararPlaylists() {
     // conforme cada capa fica disponível.
     const resultados = await Promise.all(
         playlists.map(async (item, index) => {
+            if (item.tipo === "video") {
+                const ok = await carregarTituloOriginalDoYouTube(item, index);
+                if (ok && index === playlistAtual) atualizarCapaDoDisco();
+                return ok;
+            }
+
             const ok = await carregarDadosPlaylist(item);
 
             if (ok) {
