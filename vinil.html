@@ -811,8 +811,27 @@ function selecionarPlaylist(index) {
     atualizarCapaSelecionada();
     atualizarInformacoes();
 
+    // O álbum de arquivos locais não depende da API do YouTube.
+    // Isso permite tocar os M4A mesmo se o player/API do YouTube ainda não carregou.
+    if (item.tipo === "audioLocal") {
+        tocando = false;
+        vinyl.classList.remove("playing");
+        tonearm.classList.remove("playing-arm");
+        playButton.textContent = "▶ Reproduzir";
+
+        if (localAudio) {
+            localAudio.pause();
+            localAudio.removeAttribute("src");
+            localAudio.load();
+        }
+        faixaLocalAtual = 0;
+        tocarFaixaLocal(false);
+        statusText.textContent = "Pronto";
+        return;
+    }
+
     if (!playerReady) {
-        statusText.textContent = "Carregando YouTube...";
+        statusText.textContent = "YouTube carregando...";
         return;
     }
 
@@ -831,13 +850,6 @@ function selecionarPlaylist(index) {
         localAudio.load();
     }
     if (playerReady) player.stopVideo();
-
-    if (item.tipo === "audioLocal") {
-        faixaLocalAtual = 0;
-        tocarFaixaLocal(false);
-        statusText.textContent = "Pronto";
-        return;
-    }
 
     if (item.tipo === "video" && item.videoId) {
         // A entrada ACRECENTE • Rádio é um vídeo/radio mix do YouTube.
@@ -886,7 +898,7 @@ function tocarFaixaLocal(iniciar = true) {
 
     faixaLocalAtual = Math.max(0, Math.min(faixaLocalAtual, item.faixas.length - 1));
     const faixa = item.faixas[faixaLocalAtual];
-    localAudio.src = encodeURI(faixa.arquivo);
+    localAudio.src = new URL(faixa.arquivo, window.location.href).href;
     localAudio.volume = Number(volume.value) / 100;
     song.textContent = faixa.nome;
     playlistName.textContent = item.nome + " • faixa " + (faixaLocalAtual + 1) + " de " + item.faixas.length;
