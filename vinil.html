@@ -250,6 +250,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radiu
 </div>
 
 <div id="youtube-player" class="youtube-player"></div>
+<audio id="local-audio" preload="metadata" style="display:none"></audio>
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <script>
@@ -270,12 +271,24 @@ const YOUTUBE_API_KEY = "AIzaSyDtaU0s5cdRbX-kUC06el2nPCTXBP-eUeA";
 
 const playlists = [
     {
-        nome: "Pelos Caminhos Que Zé Me Guiou",
-        playlist: "OLAK5uy_na8l02TgDgxUJayriOL4JPxIhhCg9lqo8",
-        capa: "https://http2.mlstatic.com/D_NQ_NP_838866-MLB74648501462_022024-O.webp",
-        capaOriginal: "https://http2.mlstatic.com/D_NQ_NP_838866-MLB74648501462_022024-O.webp",
-        descricao: "Playlist do YouTube",
-        quantidade: 7
+        nome: "Pontos do Nosso Terreiro",
+        playlist: "",
+        tipo: "audioLocal",
+        capa: "Pontos do Nosso Terreiro.png",
+        capaOriginal: "Pontos do Nosso Terreiro.png",
+        descricao: "Álbum local • Pontos de Umbanda",
+        quantidade: 9,
+        faixas: [
+            { nome: "Defumação", arquivo: "Defumação.m4a" },
+            { nome: "Rompe Mato", arquivo: "Rompe mato.m4a" },
+            { nome: "Jurema", arquivo: "Jurema.m4a" },
+            { nome: "Mãe Maria", arquivo: "Mae Maria.m4a" },
+            { nome: "Seu Zé Pelintra", arquivo: "Seu Zé.m4a" },
+            { nome: "Ogum", arquivo: "Ogum.m4a" },
+            { nome: "João da Mata", arquivo: "Joao da mata.m4a" },
+            { nome: "Índio Brasileiro", arquivo: "Indio brasileiro.m4a" },
+            { nome: "Girassol", arquivo: "Girassol.m4a" }
+        ]
     },
     {
         nome: "ACRECENTE",
@@ -471,6 +484,8 @@ const apiMessage = document.getElementById("apiMessage");
 
 let player = null;
 let playerReady = false;
+const localAudio = document.getElementById("local-audio");
+let faixaLocalAtual = 0;
 let tocando = false;
 let playlistAtual = 0;
 
@@ -772,11 +787,13 @@ function onPlayerReady() {
     playerReady = true;
     player.setVolume(Number(volume.value));
 
-    player.cuePlaylist({
-        listType: "playlist",
-        list: playlists[playlistAtual].playlist,
-        index: 0
-    });
+    if (playlists[playlistAtual].tipo !== "audioLocal") {
+        player.cuePlaylist({
+            listType: "playlist",
+            list: playlists[playlistAtual].playlist,
+            index: 0
+        });
+    }
 
     atualizarInformacoes();
     statusText.textContent = "Pronto";
@@ -808,7 +825,19 @@ function selecionarPlaylist(index) {
 
     statusText.textContent = "Abrindo " + item.nome + "...";
 
-    player.stopVideo();
+    if (localAudio) {
+        localAudio.pause();
+        localAudio.removeAttribute("src");
+        localAudio.load();
+    }
+    if (playerReady) player.stopVideo();
+
+    if (item.tipo === "audioLocal") {
+        faixaLocalAtual = 0;
+        tocarFaixaLocal(false);
+        statusText.textContent = "Pronto";
+        return;
+    }
 
     if (item.tipo === "video" && item.videoId) {
         // A entrada ACRECENTE • Rádio é um vídeo/radio mix do YouTube.
@@ -841,12 +870,79 @@ function selecionarPlaylist(index) {
 ========================================================= */
 function atualizarInformacoes() {
     const item = playlists[playlistAtual];
-    song.textContent = item.nome;
-    playlistName.textContent = item.descricao;
+    if (item.tipo === "audioLocal" && item.faixas) {
+        song.textContent = item.faixas[faixaLocalAtual]?.nome || item.nome;
+        playlistName.textContent = item.nome + " • faixa " + (faixaLocalAtual + 1) + " de " + item.faixas.length;
+    } else {
+        song.textContent = item.nome;
+        playlistName.textContent = item.descricao;
+    }
     atualizarCapaDoDisco();
 }
 
+function tocarFaixaLocal(iniciar = true) {
+    const item = playlists[playlistAtual];
+    if (!item || item.tipo !== "audioLocal" || !item.faixas?.length || !localAudio) return;
+
+    faixaLocalAtual = Math.max(0, Math.min(faixaLocalAtual, item.faixas.length - 1));
+    const faixa = item.faixas[faixaLocalAtual];
+    localAudio.src = encodeURI(faixa.arquivo);
+    localAudio.volume = Number(volume.value) / 100;
+    song.textContent = faixa.nome;
+    playlistName.textContent = item.nome + " • faixa " + (faixaLocalAtual + 1) + " de " + item.faixas.length;
+    currentTime.textContent = "0:00";
+    duration.textContent = "0:00";
+
+    if (iniciar) {
+        const tentativa = localAudio.play();
+        if (tentativa && typeof tentativa.catch === "function") {
+            tentativa.catch(() => {
+                statusText.textContent = "Clique em Reproduzir";
+                pararVisual();
+            });
+        }
+    } else {
+        statusText.textContent = "Pronto";
+        pararVisual();
+    }
+}
+
+localAudio.addEventListener("play", () => {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        iniciarVisual();
+        statusText.textContent = "Tocando...";
+    }
+});
+localAudio.addEventListener("pause", () => {
+    if (playlists[playlistAtual]?.tipo === "audioLocal" && !localAudio.ended) {
+        pararVisual();
+        statusText.textContent = "Pausado";
+    }
+});
+localAudio.addEventListener("ended", () => {
+    if (playlists[playlistAtual]?.tipo !== "audioLocal") return;
+    if (faixaLocalAtual < playlists[playlistAtual].faixas.length - 1) {
+        faixaLocalAtual++;
+        tocarFaixaLocal(true);
+    } else {
+        pararVisual();
+        statusText.textContent = "Fim do álbum";
+    }
+});
+localAudio.addEventListener("error", () => {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        pararVisual();
+        statusText.textContent = "Erro ao carregar áudio";
+        apiMessage.hidden = false;
+        apiMessage.textContent = "Não foi possível abrir " + (playlists[playlistAtual].faixas?.[faixaLocalAtual]?.arquivo || "o arquivo de áudio") + ". Confira se o arquivo está na mesma pasta do index.html e se o nome está idêntico.";
+    }
+});
+
 function atualizarTituloMusica() {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        atualizarInformacoes();
+        return;
+    }
     if (!playerReady) return;
 
     try {
@@ -878,6 +974,11 @@ function atualizarCapaDaFaixa() {
    PLAY / PAUSE
 ========================================================= */
 function togglePlay() {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        if (localAudio.paused) playMusic();
+        else pauseMusic();
+        return;
+    }
     if (!playerReady) {
         statusText.textContent = "YouTube carregando...";
         return;
@@ -888,6 +989,17 @@ function togglePlay() {
 }
 
 function playMusic() {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        if (!localAudio.src) {
+            tocarFaixaLocal(true);
+        } else {
+            const tentativa = localAudio.play();
+            if (tentativa && typeof tentativa.catch === "function") {
+                tentativa.catch(() => { statusText.textContent = "Não foi possível reproduzir o áudio"; });
+            }
+        }
+        return;
+    }
     if (!playerReady) return;
 
     player.playVideo();
@@ -910,6 +1022,12 @@ function pararVisual() {
 }
 
 function pauseMusic() {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        localAudio.pause();
+        pararVisual();
+        statusText.textContent = "Pausado";
+        return;
+    }
     if (playerReady) player.pauseVideo();
 
     tocando = false;
@@ -919,6 +1037,15 @@ function pauseMusic() {
 }
 
 function stopMusic() {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        localAudio.pause();
+        localAudio.currentTime = 0;
+        pararVisual();
+        statusText.textContent = "Parado";
+        currentTime.textContent = "0:00";
+        duration.textContent = formatTime(localAudio.duration);
+        return;
+    }
     if (playerReady) player.stopVideo();
 
     tocando = false;
@@ -934,6 +1061,11 @@ function stopMusic() {
    ANTERIOR / PRÓXIMA
 ========================================================= */
 function previousMusic() {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        if (faixaLocalAtual > 0) faixaLocalAtual--;
+        tocarFaixaLocal(true);
+        return;
+    }
     if (!playerReady) return;
 
     player.previousVideo();
@@ -942,6 +1074,15 @@ function previousMusic() {
 }
 
 function nextMusic() {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        if (faixaLocalAtual < playlists[playlistAtual].faixas.length - 1) {
+            faixaLocalAtual++;
+            tocarFaixaLocal(true);
+        } else {
+            statusText.textContent = "Fim do álbum";
+        }
+        return;
+    }
     if (!playerReady) return;
 
     player.nextVideo();
@@ -953,7 +1094,11 @@ function nextMusic() {
    VOLUME
 ========================================================= */
 volume.addEventListener("input", function() {
-    if (playerReady) player.setVolume(Number(this.value));
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        localAudio.volume = Number(this.value) / 100;
+    } else if (playerReady) {
+        player.setVolume(Number(this.value));
+    }
 });
 
 /* =========================================================
@@ -1009,6 +1154,11 @@ function onPlayerError() {
    TEMPO
 ========================================================= */
 setInterval(() => {
+    if (playlists[playlistAtual]?.tipo === "audioLocal") {
+        currentTime.textContent = formatTime(localAudio.currentTime);
+        duration.textContent = formatTime(localAudio.duration);
+        return;
+    }
     if (!playerReady || !player.getDuration) return;
 
     try {
@@ -1053,6 +1203,7 @@ async function prepararPlaylists() {
     // conforme cada capa fica disponível.
     const resultados = await Promise.all(
         playlists.map(async (item, index) => {
+            if (item.tipo === "audioLocal") return true;
             if (item.tipo === "video") {
                 const ok = await carregarTituloOriginalDoYouTube(item, index);
                 if (ok && index === playlistAtual) atualizarCapaDoDisco();
